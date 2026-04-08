@@ -3,8 +3,6 @@ import streamlit as st
 import cv2
 import numpy as np
 import base64
-from inference_sdk import InferenceHTTPClient
-from inference_sdk.webrtc import VideoFileSource, StreamConfig, VideoMetadata
 
 # ===============================
 # CONFIGURAZIONE INIZIALE
