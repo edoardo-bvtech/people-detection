@@ -16,7 +16,7 @@ st.set_page_config(page_title="Disability Detection Stream", layout="wide")
 st.title("♿ Rilevamento persone con mobilità ridotta")
 
 # API Key e workspace Roboflow
-API_KEY = "TUA_API_KEY"
+API_KEY = "7IvJ8E5kwCJd2MAsZFE5"
 WORKFLOW_NAME = "custom-workflow"
 WORKSPACE = "trikxonns-workspace"
 
@@ -34,7 +34,7 @@ if input_option == "Video File":
 # ===============================
 client = InferenceHTTPClient.init(
     api_url="https://serverless.roboflow.com",
-    api_key=7IvJ8E5kwCJd2MAsZFE5
+    api_key=API_KEY
 )
 
 VIDEO_OUTPUT = "annotated_video"
