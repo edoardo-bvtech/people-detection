@@ -1,4 +1,5 @@
 streamlit==1.27.0
-numpy
-opencv-python-headless
+numpy==1.26.4
+opencv-python-headless==4.7.0.72
 pillow
+inference-sdk==0.45.1
