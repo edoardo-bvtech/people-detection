@@ -4,6 +4,11 @@ import cv2
 import numpy as np
 import base64
 
+from inference_sdk import InferenceHTTPClient
+from inference_sdk.stream import StreamConfig
+from inference_sdk.stream import VideoFileSource
+from inference_sdk.stream import VideoMetadata
+
 # ===============================
 # CONFIGURAZIONE INIZIALE
 # ===============================
@@ -29,7 +34,7 @@ if input_option == "Video File":
 # ===============================
 client = InferenceHTTPClient.init(
     api_url="https://serverless.roboflow.com",
-    api_key=API_KEY
+    api_key=7IvJ8E5kwCJd2MAsZFE5
 )
 
 VIDEO_OUTPUT = "annotated_video"
@@ -42,32 +47,57 @@ config = StreamConfig(
     requested_region="us",
 )
 
-# ===============================
-# STREAM VIDEO
-# ===============================
-stframe = st.empty()
-analytics_frame = st.empty()
-
 if st.button("Avvia rilevamento"):
 
-    if input_option == "Webcam":
-        source = VideoFileSource("0", realtime_processing=True)
-    elif input_option == "Video File":
+    if input_option == "Video File":
         if video_file is None:
             st.warning("Carica prima un video!")
             st.stop()
-        # Salva temporaneamente
-        with open("temp_video.mp4", "wb") as f:
-            f.write(video_file.read())
-        source = VideoFileSource("temp_video.mp4", realtime_processing=False)
 
-    session = client.webrtc.stream(
-        source=source,
-        workflow=WORKFLOW_NAME,
-        workspace=WORKSPACE,
-        image_input="image",
-        config=config
-    )
+        tfile = open("temp.mp4", "wb")
+        tfile.write(video_file.read())
+
+        cap = cv2.VideoCapture("temp.mp4")
+
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+
+            # Encode frame
+            _, buffer = cv2.imencode('.jpg', frame)
+            img_bytes = buffer.tobytes()
+
+            # CHIAMATA API ROBOFLOW
+            result = client.infer(
+                img_bytes,
+                model_id="road-users-disabilities/5"
+            )
+
+            # DISEGNA BOX
+            for pred in result["predictions"]:
+                x = int(pred["x"])
+                y = int(pred["y"])
+                w = int(pred["width"])
+                h = int(pred["height"])
+
+                label = pred["class"]
+
+                cv2.rectangle(frame,
+                              (x - w//2, y - h//2),
+                              (x + w//2, y + h//2),
+                              (0, 255, 0), 2)
+
+                cv2.putText(frame, label,
+                            (x, y),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.5, (0,255,0), 2)
+
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            stframe.image(frame)
+
+        cap.release()
+
 
     @session.on_data()
     def on_data(data: dict, metadata: VideoMetadata):
