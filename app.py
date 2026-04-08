@@ -10,7 +10,7 @@ st.set_page_config(page_title="Disability Detection", layout="wide")
 st.title("♿ Rilevamento persone con mobilità ridotta")
 
 # 🔐 API KEY (meglio usare st.secrets in produzione)
-API_KEY = "INSERISCI_LA_TUA_API_KEY"
+API_KEY = "7IvJ8E5kwCJd2MAsZFE5"
 
 # Inizializza client Roboflow
 client = InferenceHTTPClient(
