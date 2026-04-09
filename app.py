@@ -10,7 +10,7 @@ st.set_page_config(page_title="People Detection", layout="wide")
 st.title("👥 People Detection - Roboflow (Python 3.14)")
 
 # 🔑 Inserisci la tua API KEY
-API_KEY = "INSERISCI_LA_TUA_API_KEY"
+API_KEY = "7IvJ8E5kwCJd2MAsZFE5"
 
 MODEL_URL = "https://detect.roboflow.com/people-detection-o4rdr/7"
 
