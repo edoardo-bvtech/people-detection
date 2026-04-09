@@ -11,7 +11,7 @@ Applicazione Streamlit che utilizza il modello Roboflow per rilevare persone con
 
 ## 📋 Prerequisiti
 
-- Python 3.11+
+- Python 3.10+
 - Account Roboflow con API key
 
 ## 🛠️ Installazione Locale
@@ -100,7 +100,7 @@ Configura i secrets direttamente nel dashboard di Streamlit Cloud.
 - `opencv-python-headless==4.8.1.78` - Elaborazione video
 - `numpy==1.26.4` - Calcoli numerici
 - `pillow` - Manipolazione immagini
-- `inference-sdk==0.45.0` - API Roboflow
+- `inference-sdk==0.9.23` - API Roboflow
 
 ## 🔐 Sicurezza
 
