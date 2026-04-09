@@ -1,6 +1,8 @@
 import streamlit as st
 import cv2
 import numpy as np
+import os
+import tempfile
 from inference_sdk import InferenceHTTPClient
 
 # ===============================
@@ -9,8 +11,12 @@ from inference_sdk import InferenceHTTPClient
 st.set_page_config(page_title="Disability Detection", layout="wide")
 st.title("♿ Rilevamento persone con mobilità ridotta")
 
-# 🔐 API KEY (meglio usare st.secrets in produzione)
-API_KEY = "7IvJ8E5kwCJd2MAsZFE5"
+# 🔐 API KEY da st.secrets
+try:
+    API_KEY = st.secrets["roboflow"]["api_key"]
+except KeyError:
+    st.error("❌ API Key non trovata! Configura st.secrets.")
+    st.stop()
 
 # Inizializza client Roboflow
 client = InferenceHTTPClient(
@@ -35,11 +41,13 @@ if st.button("Avvia rilevamento"):
         st.warning("Carica prima un video!")
         st.stop()
 
-    # Salva file temporaneo
-    with open("temp.mp4", "wb") as f:
-        f.write(video_file.read())
+    # Salva file temporaneo in directory temp del sistema
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
+        tmp.write(video_file.read())
+        temp_path = tmp.name
 
-    cap = cv2.VideoCapture("temp.mp4")
+    try:
+        cap = cv2.VideoCapture(temp_path)
 
     while cap.isOpened():
         ret, frame = cap.read()
@@ -105,3 +113,9 @@ if st.button("Avvia rilevamento"):
             info_box.text(detections_text)
 
     cap.release()
+
+    finally:
+        # Pulisci il file temporaneo
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        st.success("✅ Rilevamento completato!")
