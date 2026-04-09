@@ -1,121 +1,67 @@
 import streamlit as st
-import cv2
+import requests
 import numpy as np
-import os
-import tempfile
-from inference_sdk import InferenceHTTPClient
+import cv2
+from PIL import Image
+from io import BytesIO
 
-# ===============================
-# CONFIGURAZIONE
-# ===============================
 st.set_page_config(page_title="People Detection", layout="wide")
-st.title("♿ People Detection - Rilevamento Persone con Mobilità Ridotta")
 
-# 🔐 API KEY da st.secrets
-try:
-    API_KEY = st.secrets["roboflow"]["api_key"]
-except KeyError:
-    st.error("❌ API Key non trovata! Configura st.secrets.")
-    st.stop()
+st.title("👥 People Detection - Roboflow (Python 3.14)")
 
-# Inizializza client Roboflow
-client = InferenceHTTPClient(
-    api_url="https://detect.roboflow.com",
-    api_key=API_KEY
-)
+# 🔑 Inserisci la tua API KEY
+API_KEY = "INSERISCI_LA_TUA_API_KEY"
 
-# ===============================
-# INPUT VIDEO
-# ===============================
-video_file = st.file_uploader("Carica un video", type=["mp4", "avi", "mov"])
+MODEL_URL = "https://detect.roboflow.com/people-detection-o4rdr/7"
 
-stframe = st.empty()
-info_box = st.empty()
+uploaded_file = st.file_uploader("Carica un'immagine", type=["jpg", "jpeg", "png"])
 
-# ===============================
-# AVVIO
-# ===============================
-if st.button("Avvia rilevamento"):
+def draw_boxes(image, predictions):
+    for pred in predictions:
+        x = int(pred["x"])
+        y = int(pred["y"])
+        w = int(pred["width"])
+        h = int(pred["height"])
 
-    if video_file is None:
-        st.warning("Carica prima un video!")
-        st.stop()
+        x1 = int(x - w / 2)
+        y1 = int(y - h / 2)
+        x2 = int(x + w / 2)
+        y2 = int(y + h / 2)
 
-    # Salva file temporaneo in directory temp del sistema
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
-        tmp.write(video_file.read())
-        temp_path = tmp.name
+        label = f"{pred['class']} {pred['confidence']:.2f}"
 
-    try:
-        cap = cv2.VideoCapture(temp_path)
+        cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        cv2.putText(image, label, (x1, y1 - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                break
+    return image
 
-            # Ridimensiona per velocità
-            frame = cv2.resize(frame, (640, 360))
+if uploaded_file is not None:
+    image = Image.open(uploaded_file).convert("RGB")
+    img_np = np.array(image)
 
-            # Encode immagine
-            _, buffer = cv2.imencode(".jpg", frame)
-            img_bytes = buffer.tobytes()
+    st.subheader("📷 Immagine originale")
+    st.image(image, use_column_width=True)
 
-            # 🔥 CHIAMATA ROBOFLOW
-            result = client.infer(
-                img_bytes,
-                model_id="road-users-disabilities/5"
-            )
+    with st.spinner("🔍 Analisi in corso..."):
+        buffered = BytesIO()
+        image.save(buffered, format="JPEG")
 
-            detections_text = ""
+        response = requests.post(
+            MODEL_URL,
+            params={"api_key": API_KEY},
+            files={"file": buffered.getvalue()}
+        )
 
-            # Disegno bounding box
-            for pred in result.get("predictions", []):
-                x = int(pred["x"])
-                y = int(pred["y"])
-                w = int(pred["width"])
-                h = int(pred["height"])
-                label = pred["class"]
-                conf = pred["confidence"]
+        if response.status_code != 200:
+            st.error(f"Errore API: {response.text}")
+        else:
+            data = response.json()
+            predictions = data.get("predictions", [])
 
-                # Box
-                cv2.rectangle(
-                    frame,
-                    (x - w // 2, y - h // 2),
-                    (x + w // 2, y + h // 2),
-                    (0, 255, 0),
-                    2
-                )
+            st.write(f"👀 Persone rilevate: {len(predictions)}")
 
-                # Label
-                cv2.putText(
-                    frame,
-                    f"{label} ({conf:.2f})",
-                    (x, y),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.5,
-                    (0, 255, 0),
-                    2
-                )
+            img_with_boxes = draw_boxes(img_np.copy(), predictions)
 
-                # Logica base
-                if label in ["wheelchair", "cane", "stroller"]:
-                    detections_text += f"{label.upper()} rilevato ({conf:.2f})\n"
-
-            # Converti BGR → RGB
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-            # Mostra video
-            stframe.image(frame, channels="RGB")
-
-            # Mostra info
-            if detections_text:
-                info_box.text(detections_text)
-
-        cap.release()
-
-    finally:
-        # Pulisci il file temporaneo
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
-        st.success("✅ Rilevamento completato!")
+            st.subheader("📊 Risultato")
+            st.image(img_with_boxes, use_column_width=True)
