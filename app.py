@@ -10,7 +10,11 @@ st.title("👥 People Detection - Roboflow")
 
 # 🔑 Configurazione API (Usa st.secrets per sicurezza su Streamlit Cloud)
 # Se non hai ancora impostato i Secrets, puoi scrivere temporaneamente la stringa qui
-API_KEY = st.secrets.get("ROBOFLOW_API_KEY", "7IvJ8E5kwCJd2MAsZFE5")
+try:
+    API_KEY = st.secrets["ROBOFLOW_API_KEY"]
+except KeyError:
+    st.error("Errore: Chiave 'ROBOFLOW_API_KEY' non trovata nei Secrets di Streamlit.")
+    st.stop() # Ferma l'app se manca la chiave
 MODEL_ID = "people-detection-o4rdr/7"
 
 # Inizializza il client Roboflow
