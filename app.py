@@ -1,76 +1,83 @@
 import streamlit as st
 import cv2
 import tempfile
-import numpy as np
+import pandas as pd
 from inference_sdk import InferenceHTTPClient
 
-# --- CONFIGURAZIONE ---
-st.set_page_config(page_title="Video Analysis - Roboflow", layout="wide")
-st.title("📹 Video Analysis con Roboflow Workflows")
-
-# Recupera la chiave dai Secrets
-if "ROBOFLOW_API_KEY" not in st.secrets:
-    st.error("⚠️ Configura 'ROBOFLOW_API_KEY' nei Secrets di Streamlit Cloud!")
-    st.stop()
+st.set_page_config(page_title="Video Report - Roboflow", layout="wide")
+st.title("📊 Analisi Video e Report Individui")
 
 API_KEY = st.secrets["ROBOFLOW_API_KEY"]
+client = InferenceHTTPClient(api_url="https://detect.roboflow.com", api_key=API_KEY)
 
-# Inizializza il client per i Workflows
-client = InferenceHTTPClient(
-    api_url="https://detect.roboflow.com",
-    api_key=API_KEY
-)
-
-WORKSPACE_ID = "trikxonns-workspace"
-WORKFLOW_ID = "custom-workflow"
-
-# --- INTERFACCIA ---
-uploaded_video = st.file_uploader("Carica un video (mp4)", type=["mp4"])
+uploaded_video = st.file_uploader("Carica Video per Analisi", type=["mp4"])
 
 if uploaded_video:
-    # Salvataggio temporaneo
     tfile = tempfile.NamedTemporaryFile(delete=False)
     tfile.write(uploaded_video.read())
     
-    st.info("🚀 Analisi in corso... I risultati appariranno qui sotto.")
+    # Dizionario per accumulare i dati di ogni individuo (chiave = tracker_id)
+    report_data = {}
+
+    cap = cv2.VideoCapture(tfile.name)
     frame_placeholder = st.empty()
     
-    cap = cv2.VideoCapture(tfile.name)
-    
+    st.info("⌛ Elaborazione in corso... Il report apparirà al termine.")
+
     while cap.isOpened():
         ret, frame = cap.read()
-        if not ret:
-            break
+        if not ret: break
             
-        try:
-            # Eseguiamo il Workflow inviando il frame come lista [frame]
-            # Assicurati che l'input nel Workflow si chiami 'image'
-            results = client.run_workflow(
-                workspace_name=WORKSPACE_ID,
-                workflow_id=WORKFLOW_ID,
-                images={"image": [frame]}
-            )
+        results = client.run_workflow(
+            workspace_name="trikxonns-workspace",
+            workflow_id="custom-workflow",
+            images={"image": [frame]}
+        )
+        
+        if results and len(results) > 0:
+            output = results[0]
             
-            # Gestione del risultato (evitiamo errori di tipo lista/dizionario)
-            if isinstance(results, list) and len(results) > 0:
-                output_data = results[0]
-                
-                # 'annotated_video' deve corrispondere all'output nel tuo Workflow
-                annotated_frame = output_data.get("annotated_video")
-                
-                if annotated_frame is not None:
-                    # Converti BGR (OpenCV) -> RGB (Streamlit)
-                    frame_rgb = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
-                    frame_placeholder.image(frame_rgb, channels="RGB", use_container_width=True)
-                else:
-                    st.error(f"❌ Output 'annotated_video' non trovato. Disponibili: {list(output_data.keys())}")
-                    break
-            else:
-                st.warning("⚠️ Nessun dato ricevuto dal Workflow.")
-                
-        except Exception as e:
-            st.error(f"❌ Errore durante l'esecuzione: {e}")
-            break
+            # 1. Visualizzazione Video
+            if "annotated_video" in output:
+                frame_rgb = cv2.cvtColor(output["annotated_video"], cv2.COLOR_BGR2RGB)
+                frame_placeholder.image(frame_rgb, channels="RGB", use_container_width=True)
+
+            # 2. Accumulo Dati per il Report (da analytics_data)
+            # 'analytics_data' contiene la lista delle persone rilevate in QUESTO frame
+            detections = output.get("analytics_data", [])
+            for det in detections:
+                tid = det.get("tracker_id")
+                if tid is not None:
+                    # Aggiorna o crea l'entrata per questo individuo
+                    if tid not in report_data:
+                        report_data[tid] = {"tempo_max": 0, "velocita_max": 0, "classe": det.get("class_name")}
+                    
+                    # Aggiorna il tempo di permanenza e la velocità massima registrata
+                    report_data[tid]["tempo_max"] = max(report_data[tid]["tempo_max"], det.get("time_in_zone", 0))
+                    report_data[tid]["velocita_max"] = max(report_data[tid]["velocita_max"], det.get("velocity", 0))
 
     cap.release()
-    st.success("✅ Analisi completata!")
+
+    # --- GENERAZIONE REPORT FINALE ---
+    st.divider()
+    st.subheader("📋 Report Analisi Individui")
+    
+    if report_data:
+        # Trasformiamo il dizionario in una lista per creare un DataFrame Pandas
+        final_list = []
+        for tid, values in report_data.items():
+            final_list.append({
+                "ID Individuo": tid,
+                "Tipo": values["classe"],
+                "Tempo in Scena (sec)": round(values["tempo_max"], 2),
+                "Velocità Max Registrata": round(values["velocita_max"], 2)
+            })
+        
+        df = pd.DataFrame(final_list)
+        st.dataframe(df, use_container_width=True)
+        
+        # Opzione per scaricare il report in CSV
+        csv = df.to_csv(index=False).encode('utf-8')
+        st.download_button("📥 Scarica Report CSV", csv, "report_video.csv", "text/csv")
+    else:
+        st.warning("Nessun individuo rilevato nel video.")
