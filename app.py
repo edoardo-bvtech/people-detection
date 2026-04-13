@@ -52,37 +52,43 @@ if uploaded_video:
         if not ret:
             break
             
-        try:
-            # --- CHIAMATA WORKFLOW ---
-            # Passiamo [frame] come lista per evitare errori di decodifica nell'SDK
-            # 'image' deve corrispondere al nome del blocco Input nel Workflow
+       try:
+            # 1. Chiamata al Workflow - Invio come lista [frame]
+            # Usiamo direttamente l'input 'image' definito nel tuo Workflow
+            payload = {"image": [frame]}
+            
+            # Eseguiamo la chiamata
             results = client.run_workflow(
                 workspace_name=WORKSPACE_ID,
                 workflow_id=WORKFLOW_ID,
-                images={"image": [frame]}
+                images=payload
             )
             
-            # 4. Gestione Risultati
-            if results and isinstance(results, list) and len(results) > 0:
+            # 2. Gestione della risposta (Evitiamo l'errore .items())
+            # Se results è una lista, prendiamo il primo elemento
+            if isinstance(results, list) and len(results) > 0:
                 output_data = results[0]
                 
-                # 'annotated_video' deve corrispondere al nome del Workflow Output
-                annotated_frame = output_data.get("annotated_video")
-                
-                if annotated_frame is not None:
-                    # Converti BGR (OpenCV) -> RGB (Streamlit)
-                    frame_rgb = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
+                # Cerchiamo l'output 'annotated_video' nel dizionario dei risultati
+                # Assicurati che nel Workflow l'output si chiami esattamente così
+                if "annotated_video" in output_data:
+                    annotated_frame = output_data["annotated_video"]
                     
-                    # Mostra il frame elaborato
-                    frame_placeholder.image(frame_rgb, channels="RGB", use_container_width=True)
+                    # Se l'output è un'immagine valida, mostrala
+                    if isinstance(annotated_frame, np.ndarray):
+                        frame_rgb = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
+                        frame_placeholder.image(frame_rgb, channels="RGB", use_container_width=True)
+                    else:
+                        st.warning("L'output 'annotated_video' non è un'immagine valida.")
                 else:
-                    st.error("❌ Output 'annotated_video' non trovato. Controlla i nomi nel Workflow!")
+                    st.error(f"Output 'annotated_video' non trovato. Trovati: {list(output_data.keys())}")
                     break
             else:
-                st.warning("⚠️ Nessun dato ricevuto dal Workflow per questo frame.")
+                st.warning("Nessun risultato ricevuto dal Workflow.")
                 
         except Exception as e:
-            st.error(f"❌ Errore durante l'esecuzione del Workflow: {e}")
+            # Se l'errore persiste, stampiamo il tipo per capire meglio
+            st.error(f"Errore tecnico: {type(e).__name__} - {e}")
             break
 
     # 5. Pulizia
