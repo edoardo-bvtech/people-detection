@@ -1,59 +1,38 @@
-
 import streamlit as st
 import cv2
 import tempfile
-import supervision as sv
 from inference_sdk import InferenceHTTPClient
 
-st.set_page_config(page_title="Video Workflow Analysis", layout="wide")
-st.title("📹 Video Analysis con Roboflow Workflows")
-
-# Configurazione API dai Secrets
+# Setup API
 API_KEY = st.secrets["ROBOFLOW_API_KEY"]
-WORKFLOW_ID = "custom-workflow" # Inserisci il nome del tuo workflow
+client = InferenceHTTPClient(api_url="https://detect.roboflow.com", api_key=API_KEY)
 
-# Inizializza il client per i Workflows
-client = InferenceHTTPClient(
-    api_url="https://detect.roboflow.com",
-    api_key=API_KEY
-)
-
-uploaded_video = st.file_uploader("Carica un video (mp4, mov, avi)", type=["mp4", "mov", "avi"])
+uploaded_video = st.file_uploader("Carica Video", type=["mp4"])
 
 if uploaded_video:
-    # Salvataggio temporaneo del video caricato
     tfile = tempfile.NamedTemporaryFile(delete=False)
     tfile.write(uploaded_video.read())
     
-    st.info("Elaborazione video in corso... Attendi il completamento.")
-    
-    # Setup per la visualizzazione
-    frame_placeholder = st.empty()
-    
-    # Apertura del video con OpenCV
     cap = cv2.VideoCapture(tfile.name)
+    frame_placeholder = st.empty()
     
     while cap.isOpened():
         ret, frame = cap.read()
-        if not ret:
-            break
+        if not ret: break
             
-        # 1. Esegui il Workflow sul frame attuale
-        # Nota: 'image' deve corrispondere al nome dell'input nel tuo Workflow
-        result = client.run_workflow(
+        # Esegui Workflow
+        results = client.run_workflow(
             workspace_name="trikxonns-workspace",
-            workflow_id=WORKFLOW_ID,
+            workflow_id="custom-workflow",
             images={"image": frame}
         )
         
-        # 2. Recupera l'immagine annotata dal Workflow
-        # 'annotated_video' deve corrispondere al nome dell'output nel tuo Workflow
-        annotated_frame = result[0]["annotated_video"]
+        # Prendi l'output 'annotated_video' (o come lo hai chiamato nel Workflow)
+        # result è una lista, prendiamo il primo elemento [0]
+        output_frame = results[0]["annotated_video"]
         
-        # 3. Mostra il frame elaborato in Streamlit
-        # Convertiamo BGR a RGB per Streamlit
-        frame_rgb = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
-        frame_placeholder.image(frame_rgb, channels="RGB", use_container_width=True)
-
+        # Converti BGR -> RGB per Streamlit
+        frame_rgb = cv2.cvtColor(output_frame, cv2.COLOR_BGR2RGB)
+        frame_placeholder.image(frame_rgb, channels="RGB")
+    
     cap.release()
-    st.success("Elaborazione completata!")
